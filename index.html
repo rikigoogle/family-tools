@@ -73,15 +73,33 @@ footer{text-align:center;color:#9aa3ad;font-size:12px;padding:15px}
 <label id="priceLabel">未来金价（元/克）</label>
 <input id="future" type="number" min="0" step="any" value="850" oninput="calculate()">
 
-<div id="quickCny">
-<div class="muted" style="margin-top:12px">快速选择金价</div>
-<div class="chips">
-<button onclick="setPrice(700)">¥700</button>
-<button onclick="setPrice(800)">¥800</button>
-<button onclick="setPrice(900)">¥900</button>
-<button onclick="setPrice(1000)">¥1000</button>
+
+<div id="quickCny" style="margin-top:20px">
+  <div style="display:flex;justify-content:space-between;align-items:center;gap:10px">
+    <span class="muted">滑动选择金价</span>
+    <strong id="sliderPrice" style="color:#247e79">
+      ¥850.00/克
+    </strong>
+  </div>
+
+  <input
+    id="cnySlider"
+    type="range"
+    min="700"
+    max="1500"
+    step="100"
+    value="900"
+    style="width:100%;padding:0;border:0;accent-color:#247e79;cursor:pointer;margin:14px 0 5px"
+    oninput="setPrice(this.value)"
+  >
+
+  <div class="muted" style="display:flex;justify-content:space-between">
+    <span>¥700</span>
+    <span>¥1500</span>
+  </div>
+  <p class="note">滑动每次调整100元，也可以在上方输入任意精确金价。</p>
 </div>
-</div>
+
 
 <div id="quickUsd" class="hidden">
 <div class="muted" style="margin-top:12px">快速选择国际金价</div>
