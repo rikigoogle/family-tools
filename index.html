@@ -1,1 +1,254 @@
 
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>拾光工具箱</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#f6f7fb;color:#252b39;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+header{background:linear-gradient(120deg,#172e40,#326c70);color:white;padding:40px 20px;text-align:center}
+header h1{margin:0;font-size:29px}
+header p{opacity:.8;font-size:14px}
+main{max-width:690px;margin:24px auto;padding:0 15px 40px}
+.card{background:white;border-radius:18px;padding:23px;margin-bottom:18px;box-shadow:0 3px 20px #202a3a0a}
+h2{font-size:19px;margin:0 0 18px}
+label{display:block;margin:16px 0 7px;font-size:14px;font-weight:600}
+input,select{width:100%;padding:13px;border:1px solid #d8dde5;border-radius:9px;background:white;color:#252b39;font-size:16px}
+input:focus,select:focus{outline:2px solid #328f8b;border-color:transparent}
+.tabs{display:flex;gap:10px;margin-bottom:20px}
+.tabs button{flex:1;border:0;padding:13px;border-radius:10px;background:#e8edf0;color:#35404b;font-size:14px;cursor:pointer}
+.tabs button.active{background:#247e79;color:white;font-weight:bold}
+.result{background:#f2f8f7;border-radius:14px;padding:18px;margin-top:22px}
+.big{font-size:30px;font-weight:bold;margin:7px 0;color:#137f67;overflow-wrap:anywhere}
+.red{color:#d94f4f}
+.green{color:#128467}
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:18px}
+.stat{padding:13px;background:white;border-radius:10px}
+.muted{color:#7a8594;font-size:12px}
+.value{font-size:17px;font-weight:700;margin-top:6px;overflow-wrap:anywhere}
+.chips{display:flex;gap:7px;flex-wrap:wrap;margin-top:10px}
+.chips button{background:#f0f4f5;border:1px solid #e2e7e9;border-radius:8px;padding:8px 11px;cursor:pointer}
+.note{font-size:12px;color:#84909e;line-height:1.7;margin-top:15px}
+.hidden{display:none}
+footer{text-align:center;color:#9aa3ad;font-size:12px;padding:15px}
+@media(max-width:450px){.card{padding:18px}.big{font-size:27px}.stats{gap:8px}.value{font-size:15px}}
+</style>
+</head>
+<body>
+
+<header>
+<h1>✨ 拾光工具箱</h1>
+<p>让生活中的小计算，变得简单一点</p>
+</header>
+
+<main>
+<div class="tabs">
+<button id="tab1" class="active" onclick="showTool(1)">📈 黄金盈亏</button>
+<button id="tab2" onclick="showTool(2)">⚖️ 金价换算</button>
+</div>
+
+<section id="tool1" class="card">
+<h2>🥇 黄金持仓盈亏模拟器</h2>
+
+<label>持有黄金总克数（克）</label>
+<input id="grams" type="number" min="0" step="any" value="100" oninput="calculate()">
+
+<label>买入成本方式</label>
+<select id="costMode" onchange="changeCostMode()">
+<option value="gram">人民币 / 克</option>
+<option value="total">人民币总成本</option>
+</select>
+
+<label id="costLabel">买入平均成本（元/克）</label>
+<input id="cost" type="number" min="0" step="any" value="820" oninput="calculate()">
+
+<label>未来黄金价格单位</label>
+<select id="priceMode" onchange="changePriceMode()">
+<option value="cny">人民币 / 克</option>
+<option value="usd">美元 / 金衡盎司</option>
+</select>
+
+<label id="priceLabel">未来金价（元/克）</label>
+<input id="future" type="number" min="0" step="any" value="850" oninput="calculate()">
+
+<div id="quickCny">
+<div class="muted" style="margin-top:12px">快速选择金价</div>
+<div class="chips">
+<button onclick="setPrice(700)">¥700</button>
+<button onclick="setPrice(800)">¥800</button>
+<button onclick="setPrice(900)">¥900</button>
+<button onclick="setPrice(1000)">¥1000</button>
+</div>
+</div>
+
+<div id="quickUsd" class="hidden">
+<div class="muted" style="margin-top:12px">快速选择国际金价</div>
+<div class="chips">
+<button onclick="setPrice(3400)">$3400</button>
+<button onclick="setPrice(3600)">$3600</button>
+<button onclick="setPrice(3800)">$3800</button>
+<button onclick="setPrice(4000)">$4000</button>
+<button onclick="setPrice(4200)">$4200</button>
+</div>
+</div>
+
+<label>美元兑人民币汇率（1美元 = 多少人民币）</label>
+<input id="fx" type="number" min="0" step="any" value="6.67" oninput="calculate()">
+<p class="note">汇率为手动设置的示例值，并非实时汇率。预测未来美元金价时，也可以输入你假设的未来汇率。</p>
+
+<div class="result">
+<div class="muted">预计总盈亏（人民币）</div>
+<div class="big" id="profit">¥0.00</div>
+<div id="roi" class="green">收益率 0.00%</div>
+<div class="stats">
+<div class="stat">
+<div class="muted">持仓总成本</div>
+<div class="value" id="invested">--</div>
+</div>
+<div class="stat">
+<div class="muted">未来持仓市值</div>
+<div class="value" id="market">--</div>
+</div>
+<div class="stat">
+<div class="muted">每克盈亏</div>
+<div class="value" id="perGram">--</div>
+</div>
+<div class="stat">
+<div class="muted">保本价格（元/克）</div>
+<div class="value" id="breakEven">--</div>
+</div>
+<div class="stat">
+<div class="muted">未来金价折合元/克</div>
+<div class="value" id="converted">--</div>
+</div>
+<div class="stat">
+<div class="muted">持有黄金克数</div>
+<div class="value" id="gramResult">--</div>
+</div>
+</div>
+</div>
+<p class="note">仅模拟价格变动产生的理论盈亏，未扣除交易点差、手续费、保管费及税费。</p>
+</section>
+
+<section id="tool2" class="card hidden">
+<h2>⚖️ 国际黄金价格换算器</h2>
+
+<label>国际金价（美元/金衡盎司）</label>
+<input type="number" id="usdGold" value="3800" min="0" step="any" oninput="convertGold()">
+
+<label>美元兑人民币汇率</label>
+<input type="number" id="convertFx" value="6.67" min="0" step="any" oninput="convertGold()">
+
+<div class="result">
+<div class="muted">折合人民币每克</div>
+<div class="big" id="cnyGram">--</div>
+<div class="stats">
+<div class="stat">
+<div class="muted">人民币 / 金衡盎司</div>
+<div class="value" id="cnyOunce">--</div>
+</div>
+<div class="stat">
+<div class="muted">美元 / 克</div>
+<div class="value" id="usdGram">--</div>
+</div>
+</div>
+</div>
+
+<p class="note">国际黄金使用金衡盎司：1金衡盎司 = 31.1034768克。换算不含国内黄金溢价或交易成本。</p>
+</section>
+
+</main>
+
+<footer>❤️ 拾光工具箱 · 所有计算均在本地浏览器完成</footer>
+
+<script>
+const OUNCE = 31.1034768;
+const $ = id => document.getElementById(id);
+const number = id => Math.max(0,Number($(id).value)||0);
+const money = n => "¥" + n.toLocaleString("zh-CN",{
+ minimumFractionDigits:2,maximumFractionDigits:2
+});
+const fixed = n => n.toLocaleString("zh-CN",{
+ minimumFractionDigits:2,maximumFractionDigits:2
+});
+let oldCostMode = "gram";
+let oldPriceMode = "cny";
+
+function showTool(n){
+ $("tool1").classList.toggle("hidden",n!==1);
+ $("tool2").classList.toggle("hidden",n!==2);
+ $("tab1").classList.toggle("active",n===1);
+ $("tab2").classList.toggle("active",n===2);
+}
+
+function calculate(){
+ const g=number("grams");
+ const cost=number("cost");
+ const fx=number("fx");
+ const target=number("future");
+ const invested=$("costMode").value==="gram"?g*cost:cost;
+ const avg=g>0?invested/g:0;
+ const price=$("priceMode").value==="cny"?target:target*fx/OUNCE;
+ const market=g*price;
+ const profit=market-invested;
+ const roi=invested>0?100*profit/invested:0;
+
+ $("profit").textContent=(profit>0?"+":profit<0?"−":"")+money(Math.abs(profit));
+ $("profit").className="big "+(profit<0?"red":"green");
+ $("roi").textContent="投资收益率："+(roi>0?"+":"")+fixed(roi)+"%";
+ $("roi").className=profit<0?"red":"green";
+ $("invested").textContent=money(invested);
+ $("market").textContent=money(market);
+ $("perGram").textContent=(price>=avg?"+":"−")+money(Math.abs(price-avg));
+ $("breakEven").textContent=money(avg);
+ $("converted").textContent=money(price);
+ $("gramResult").textContent=g.toLocaleString("zh-CN")+" 克";
+}
+
+function changeCostMode(){
+ const next=$("costMode").value;
+ const g=number("grams");
+ const amount=number("cost");
+ if(oldCostMode!==next){
+   $("cost").value=next==="total"?(g*amount).toFixed(2):(g?amount/g:0).toFixed(2);
+ }
+ oldCostMode=next;
+ $("costLabel").textContent=next==="gram"?"买入平均成本（元/克）":"买入总成本（人民币）";
+ calculate();
+}
+
+function changePriceMode(){
+ const next=$("priceMode").value;
+ const fx=number("fx");
+ const old=number("future");
+ if(oldPriceMode!==next){
+   const converted=next==="usd"?(fx?old*OUNCE/fx:0):old*fx/OUNCE;
+   $("future").value=converted.toFixed(2);
+ }
+ oldPriceMode=next;
+ $("priceLabel").textContent=next==="cny"?"未来金价（元/克）":"未来国际金价（美元/盎司）";
+ $("quickCny").classList.toggle("hidden",next!=="cny");
+ $("quickUsd").classList.toggle("hidden",next!=="usd");
+ calculate();
+}
+
+function setPrice(p){
+ $("future").value=p;
+ calculate();
+}
+
+function convertGold(){
+ const price=number("usdGold");
+ const fx=number("convertFx");
+ $("cnyGram").textContent=money(price*fx/OUNCE)+"/克";
+ $("cnyOunce").textContent=money(price*fx);
+ $("usdGram").textContent="$"+fixed(price/OUNCE);
+}
+calculate();
+convertGold();
+</script>
+</body>
+</html>
+
