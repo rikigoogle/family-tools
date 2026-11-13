@@ -29,10 +29,12 @@ input:focus,select:focus{outline:2px solid #328f8b;border-color:transparent}
 .muted{color:#7a8594;font-size:12px}
 .value{font-size:17px;font-weight:700;margin-top:6px;overflow-wrap:anywhere}
 .chips{display:flex;gap:7px;flex-wrap:wrap;margin-top:10px}
-.chips button{background:#f0f4f5;border:1px solid #e2e7e9;border-radius:8px;padding:8px 11px;cursor:pointer}
+.chips button{background:#f0f4f5;border:1px solid #e2e7e9;border-radius:8px;padding:8px 11px;cursor:pointer;transition:background .15s,color .15s,border-color .15s}
+.chips button.selected{background:#247e79;color:white;border-color:#247e79;font-weight:700;box-shadow:0 0 0 2px #247e7924}
 .note{font-size:12px;color:#84909e;line-height:1.7;margin-top:15px}
 .hidden{display:none}
 footer{text-align:center;color:#9aa3ad;font-size:12px;padding:15px}
+.warning{background:#fff2e9;color:#9b4c16;font-size:13px;padding:12px;border-radius:9px;margin-top:14px}
 @media(max-width:450px){.card{padding:18px}.big{font-size:27px}.stats{gap:8px}.value{font-size:15px}}
 </style>
 </head>
@@ -115,6 +117,7 @@ footer{text-align:center;color:#9aa3ad;font-size:12px;padding:15px}
 <input id="fx" type="number" min="0" step="any" value="6.67" oninput="calculate()">
 <p class="note">汇率为手动设置的示例值，并非实时汇率。预测未来美元金价时，也可以输入你假设的未来汇率。</p>
 
+<p id="calcError" class="hidden warning" role="alert"></p>
 <div class="result">
 <div class="muted">预计总盈亏（人民币）</div>
 <div class="big" id="profit">¥0.00</div>
@@ -193,6 +196,40 @@ const fixed = n => n.toLocaleString("zh-CN",{
 let oldCostMode = "gram";
 let oldPriceMode = "cny";
 
+// 两个工具共享一个汇率，任意一边修改都会同步到另一边
+function syncExchangeRate(source) {
+ const other = source==="fx" ? "convertFx" : "fx";
+ $(other).value = $(source).value;
+ calculate();
+ convertGold();
+}
+$("fx").addEventListener("input",()=>syncExchangeRate("fx"));
+$("convertFx").addEventListener("input",()=>syncExchangeRate("convertFx"));
+
+// 快捷按钮选中高亮，精确输入的非预设价格不高亮
+function highlightSelectedPrice(){
+ const active=$("priceMode").value==="cny" ? "quickCny":"quickUsd";
+ const target=number("future");
+ document.querySelectorAll("#quickCny button, #quickUsd button").forEach(btn=>{
+  const parent=btn.closest("#quickCny, #quickUsd");
+  const preset=Number(btn.textContent.replace(/[^0-9.]/g,""));
+  const selected=parent.id===active && Math.abs(preset-target)<0.000001;
+  btn.classList.toggle("selected",selected);
+  btn.setAttribute("aria-pressed",selected?"true":"false");
+ });
+}
+function calculationError(message){
+ $("calcError").textContent=message;
+ $("calcError").classList.toggle("hidden",!message);
+ if(message){
+  $("profit").textContent="—";
+  $("profit").className="big";
+  $("roi").textContent="投资收益率：—";
+  $("roi").className="";
+  ["invested","market","perGram","breakEven","converted","gramResult"].forEach(id=>$(id).textContent="—");
+ }
+}
+
 function showTool(n){
  $("tool1").classList.toggle("hidden",n!==1);
  $("tool2").classList.toggle("hidden",n!==2);
@@ -201,10 +238,20 @@ function showTool(n){
 }
 
 function calculate(){
+ highlightSelectedPrice();
  const g=number("grams");
  const cost=number("cost");
  const fx=number("fx");
  const target=number("future");
+ if(g<=0){
+  calculationError("请先输入大于0的黄金克数，再计算盈亏。");
+  return;
+ }
+ if($("priceMode").value==="usd"&&fx<=0){
+  calculationError("请输入大于0的美元兑人民币汇率。");
+  return;
+ }
+ calculationError("");
  const invested=$("costMode").value==="gram"?g*cost:cost;
  const avg=g>0?invested/g:0;
  const price=$("priceMode").value==="cny"?target:target*fx/OUNCE;
@@ -214,8 +261,8 @@ function calculate(){
 
  $("profit").textContent=(profit>0?"+":profit<0?"−":"")+money(Math.abs(profit));
  $("profit").className="big "+(profit<0?"red":"green");
- $("roi").textContent="投资收益率："+(roi>0?"+":"")+fixed(roi)+"%";
- $("roi").className=profit<0?"red":"green";
+ $("roi").textContent=invested>0?"投资收益率："+(roi>0?"+":"")+fixed(roi)+"%":"投资收益率：—（成本为0）";
+ $("roi").className=invested>0?(profit<0?"red":"green"):"";
  $("invested").textContent=money(invested);
  $("market").textContent=money(market);
  $("perGram").textContent=(price>=avg?"+":"−")+money(Math.abs(price-avg));
@@ -230,7 +277,7 @@ function changeCostMode(){
  const g=number("grams");
  const amount=number("cost");
  if(oldCostMode!==next){
-   $("cost").value=next==="total"?(g*amount).toFixed(2):(g?amount/g:0).toFixed(2);
+   $("cost").value=next==="total"?String(g*amount):(g>0?String(amount/g):"");
  }
  oldCostMode=next;
  $("costLabel").textContent=next==="gram"?"买入平均成本（元/克）":"买入总成本（人民币）";
@@ -243,7 +290,7 @@ function changePriceMode(){
  const old=number("future");
  if(oldPriceMode!==next){
    const converted=next==="usd"?(fx?old*OUNCE/fx:0):old*fx/OUNCE;
-   $("future").value=converted.toFixed(2);
+   $("future").value=String(converted);
  }
  oldPriceMode=next;
  $("priceLabel").textContent=next==="cny"?"未来金价（元/克）":"未来国际金价（美元/盎司）";
@@ -260,6 +307,12 @@ function setPrice(p){
 function convertGold(){
  const price=number("usdGold");
  const fx=number("convertFx");
+ if(fx<=0){
+  $("cnyGram").textContent="请填写有效汇率";
+  $("cnyOunce").textContent="—";
+  $("usdGram").textContent="$"+fixed(price/OUNCE);
+  return;
+ }
  $("cnyGram").textContent=money(price*fx/OUNCE)+"/克";
  $("cnyOunce").textContent=money(price*fx);
  $("usdGram").textContent="$"+fixed(price/OUNCE);
