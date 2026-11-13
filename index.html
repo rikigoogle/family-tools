@@ -74,43 +74,42 @@ footer{text-align:center;color:#9aa3ad;font-size:12px;padding:15px}
 <input id="future" type="number" min="0" step="any" value="850" oninput="calculate()">
 
 
-<div id="quickCny" style="margin-top:20px">
-  <div style="display:flex;justify-content:space-between;align-items:center;gap:10px">
-    <span class="muted">滑动选择金价</span>
-    <strong id="sliderPrice" style="color:#247e79">
-      ¥850.00/克
-    </strong>
+<!-- 人民币快速选择 -->
+<div id="quickCny">
+  <div class="muted" style="margin-top:12px">
+    快速选择金价（人民币/克）
   </div>
-
-  <input
-    id="cnySlider"
-    type="range"
-    min="700"
-    max="1500"
-    step="100"
-    value="900"
-    style="width:100%;padding:0;border:0;accent-color:#247e79;cursor:pointer;margin:14px 0 5px"
-    oninput="setPrice(this.value)"
-  >
-
-  <div class="muted" style="display:flex;justify-content:space-between">
-    <span>¥700</span>
-    <span>¥1500</span>
+  <div class="chips" style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px">
+    <button onclick="setPrice(800)">¥800</button>
+    <button onclick="setPrice(850)">¥850</button>
+    <button onclick="setPrice(900)">¥900</button>
+    <button onclick="setPrice(950)">¥950</button>
+    <button onclick="setPrice(1000)">¥1000</button>
+    <button onclick="setPrice(1050)">¥1050</button>
+    <button onclick="setPrice(1100)">¥1100</button>
+    <button onclick="setPrice(1200)">¥1200</button>
+    <button onclick="setPrice(1300)">¥1300</button>
   </div>
-  <p class="note">滑动每次调整100元，也可以在上方输入任意精确金价。</p>
 </div>
 
-
+<!-- 美元快速选择 -->
 <div id="quickUsd" class="hidden">
-<div class="muted" style="margin-top:12px">快速选择国际金价</div>
-<div class="chips">
-<button onclick="setPrice(3400)">$3400</button>
-<button onclick="setPrice(3600)">$3600</button>
-<button onclick="setPrice(3800)">$3800</button>
-<button onclick="setPrice(4000)">$4000</button>
-<button onclick="setPrice(4200)">$4200</button>
+  <div class="muted" style="margin-top:12px">
+    快速选择国际金价（美元/盎司）
+  </div>
+  <div class="chips" style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px">
+    <button onclick="setPrice(3800)">$3800</button>
+    <button onclick="setPrice(4000)">$4000</button>
+    <button onclick="setPrice(4250)">$4250</button>
+    <button onclick="setPrice(4500)">$4500</button>
+    <button onclick="setPrice(4750)">$4750</button>
+    <button onclick="setPrice(5000)">$5000</button>
+    <button onclick="setPrice(5250)">$5250</button>
+    <button onclick="setPrice(5600)">$5600</button>
+    <button onclick="setPrice(6000)">$6000</button>
+  </div>
 </div>
-</div>
+
 
 <label>美元兑人民币汇率（1美元 = 多少人民币）</label>
 <input id="fx" type="number" min="0" step="any" value="6.67" oninput="calculate()">
