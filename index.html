@@ -223,13 +223,6 @@ function calculate(){
  $("converted").textContent=money(price);
  $("gramResult").textContent=g.toLocaleString("zh-CN")+" 克";
 
-if ($("priceMode").value === "cny") {
-  $("sliderPrice").textContent = money(target) + "/克";
-  $("cnySlider").value = Math.max(
-    700,
-    Math.min(1500, Math.round(target / 100) * 100)
-  );
-}
 }
 
 function changeCostMode(){
