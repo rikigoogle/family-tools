@@ -77,13 +77,12 @@ footer{text-align:center;color:#9aa3ad;font-size:12px;padding:15px}
       <strong id="liveCnyPrice">—</strong>
     </div>
   </div>
-  <div class="live-bottom">
-    <span id="liveRate">USD/CNY：加载中…</span>
-    <span id="liveQuoteTime">黄金报价：—</span>
-    <span id="liveFxTime">汇率更新：—</span>
+  <div class="live-bottom" style="margin-top:5px">
+    <span id="liveRate" style="font-weight:600;color:#247e79">USD/CNY：加载中…</span>
+    <span>黄金：<a href="https://gold-api.com/" target="_blank" rel="noopener noreferrer">Gold-API</a> · 60秒更新</span>
+    <span>汇率：<a href="https://frankfurter.dev/v1/" target="_blank" rel="noopener noreferrer">ECB / Frankfurter</a> · 工作日更新</span>
   </div>
-  <div class="live-message" id="liveMessage" role="status">正在连接行情源…</div>
-  <div class="note" style="margin-top:5px">黄金：<a href="https://gold-api.com/" target="_blank" rel="noopener noreferrer">Gold-API</a>（约60秒刷新） · 汇率：<a href="https://www.exchangerate-api.com" target="_blank" rel="noopener noreferrer">Rates By Exchange Rate API</a>（每天更新，非逐秒实时）。人民币价为国际金价折算，不是国内金店售价。</div>
+  <div class="live-message hidden" id="liveMessage" role="status"></div>
 </section>
 <div class="tabs">
 <button id="tab1" class="active" onclick="showTool(1)">📈 黄金盈亏</button>
@@ -152,7 +151,7 @@ footer{text-align:center;color:#9aa3ad;font-size:12px;padding:15px}
 </div>
 
 
-<div class="auto-fx">自动参考汇率（USD/CNY）：<strong id="fxDisplayProfit">加载中…</strong><div class="muted">按独立数据源的最近有效日度汇率折算；未来美元金价的人民币盈亏并非未来汇率预测。</div></div>
+<div class="auto-fx">USD/CNY：<strong id="fxDisplayProfit">加载中…</strong> <span class="muted">· ECB工作日参考汇率</span></div>
 
 <p id="calcError" class="hidden warning" role="alert"></p>
 <div class="result">
@@ -195,7 +194,7 @@ footer{text-align:center;color:#9aa3ad;font-size:12px;padding:15px}
 <label>国际金价（美元/金衡盎司）</label>
 <input type="number" id="usdGold" min="0" step="any" placeholder="正在获取最新金价" oninput="userEditedGoldInput=true;convertGold()">
 <button type="button" class="inline-action" onclick="useLiveGoldPrice()">使用最新金价</button>
-<div class="auto-fx">自动参考汇率（USD/CNY）：<strong id="fxDisplayConvert">加载中…</strong></div>
+<div class="auto-fx">USD/CNY：<strong id="fxDisplayConvert">加载中…</strong> <span class="muted">· ECB工作日参考汇率</span></div>
 
 <div class="result">
 <div class="muted">折合人民币每克</div>
@@ -232,16 +231,16 @@ const fixed = n => n.toLocaleString("zh-CN",{
 let oldCostMode = "gram";
 let oldPriceMode = "cny";
 
-// 黄金60秒更新；USD/CNY来自ExchangeRate-API独立日度参考价。
+// 黄金60秒更新；USD/CNY来自ECB参考汇率（经Frankfurter API）。
 // 不内置固定汇率；过期数据不会参与盈亏或人民币金价计算。
-let liveUsdPrice=null,liveFxRate=null,liveCnhRate=null;
+let liveUsdPrice=null,liveFxRate=null;
 let liveUpdatedAt=null,fxUpdatedAt=null;
 let userEditedGoldInput=false,quoteRequestInProgress=false;
 let lastQuoteAttempt=0,lastFxAttempt=0,lastFxSuccess=0,fxError="";
 const GOLD_USD_ENDPOINT="https://api.gold-api.com/price/XAU";
-const FX_ENDPOINT="https://open.er-api.com/v6/latest/USD";
+const FX_ENDPOINT="https://api.frankfurter.dev/v1/latest?base=USD&symbols=CNY";
 const REFRESH_MS=60000, FX_INTERVAL_MS=3600000, FX_MAX_AGE_MS=96*3600000;
-const FX_STORAGE_KEY="riki_fx_reference_v1";
+const FX_STORAGE_KEY="riki_fx_ecb_v1";
 const goodRate=r=>Number.isFinite(r)&&r>=4&&r<=10;
 const usableFx=()=>goodRate(liveFxRate)&&Number.isFinite(fxUpdatedAt)&&
   fxUpdatedAt<=Date.now()+600000&&Date.now()-fxUpdatedAt<=FX_MAX_AGE_MS?liveFxRate:null;
@@ -265,8 +264,8 @@ function formatQuoteTime(t){
 function restoreFx(){
  try{
   const d=JSON.parse(localStorage.getItem(FX_STORAGE_KEY)||"null");
-  if(d&&goodRate(d.rate)&&Number.isFinite(d.time)){
-   liveFxRate=d.rate;liveCnhRate=goodRate(d.cnh)?d.cnh:null;
+  if(d&&d.source==="ECB"&&goodRate(d.rate)&&Number.isFinite(d.time)){
+   liveFxRate=d.rate;
    fxUpdatedAt=d.time;
    lastFxSuccess=Number.isFinite(d.fetchedAt)?d.fetchedAt:0;
   }
@@ -274,32 +273,25 @@ function restoreFx(){
 }
 function saveFx(){
  try{localStorage.setItem(FX_STORAGE_KEY,JSON.stringify({
-  rate:liveFxRate,cnh:liveCnhRate,time:fxUpdatedAt,fetchedAt:lastFxSuccess
+  source:"ECB",rate:liveFxRate,time:fxUpdatedAt,fetchedAt:lastFxSuccess
  }))}catch(e){}
 }
 function updateQuotePanel(message,error=false){
  const rate=usableFx(),ready=liveUsdPrice!==null&&rate!==null;
  $("liveUsdPrice").textContent=liveUsdPrice!==null?"$"+fixed(liveUsdPrice):"—";
  $("liveCnyPrice").textContent=ready?money(liveUsdPrice*rate/OUNCE):"—";
- $("liveRate").textContent=rate!==null?
-  "USD/CNY："+rate.toFixed(4)+"（日度）"+(goodRate(liveCnhRate)?" · USD/CNH："+liveCnhRate.toFixed(4):""):
-  "USD/CNY：暂无有效数据";
+ $("liveRate").textContent=rate!==null?"USD/CNY："+rate.toFixed(4):"USD/CNY：暂无有效数据";
  $("fxDisplayProfit").textContent=rate!==null?rate.toFixed(4):"暂不可用";
  $("fxDisplayConvert").textContent=rate!==null?rate.toFixed(4):"暂不可用";
- $("liveQuoteTime").textContent="黄金报价："+formatQuoteTime(liveUpdatedAt);
- $("liveFxTime").textContent="汇率更新："+formatQuoteTime(fxUpdatedAt);
  const goldStale=liveUsdPrice!==null&&(liveUpdatedAt===null||Date.now()-liveUpdatedAt>15*60000);
  const fxExpired=liveFxRate!==null&&rate===null;
- const fxWeekend=rate!==null&&Date.now()-fxUpdatedAt>36*3600000;
  const warn=[];
  if(error)warn.push(message);
  if(fxError)warn.push(fxError);
- if(goldStale)warn.push("黄金报价可能延迟或市场休市。");
- if(fxExpired)warn.push("汇率超过4天未更新，美元折算已暂停。");
- else if(fxWeekend)warn.push("汇率为上一个工作日参考值，请留意休市。");
- if(rate!==null&&goodRate(liveCnhRate)&&Math.abs(rate-liveCnhRate)/rate>0.005)
-  warn.push("在岸和离岸汇率差异较大，请核对数据。");
- $("liveMessage").textContent=warn.length?warn.join(" "):message;
+ if(goldStale)warn.push("黄金报价延迟或市场休市。");
+ if(fxExpired)warn.push("汇率超过4天未更新，美元换算已暂停。");
+ $("liveMessage").textContent=warn.join(" ");
+ $("liveMessage").classList.toggle("hidden",warn.length===0);
  $("liveMessage").classList.toggle("live-error",warn.length>0);
  calculate();convertGold();
 }
@@ -310,17 +302,18 @@ async function refreshFx(){
  lastFxAttempt=now;
  try{
   const d=await fetchQuoteJson(FX_ENDPOINT);
-  const rate=Number(d?.rates?.CNY),cnh=Number(d?.rates?.CNH);
-  const t=Number(d?.time_last_update_unix)*1000;
-  if(d?.result!=="success"||d?.base_code!=="USD"||!goodRate(rate)||
-     !Number.isFinite(t)||t<1e12||t>Date.now()+600000)throw Error("Invalid FX data");
-  liveFxRate=rate;liveCnhRate=goodRate(cnh)?cnh:null;
+  const rate=Number(d?.rates?.CNY);
+  const dateText=typeof d?.date==="string"?d.date:"";
+  const t=/^\d{4}-\d{2}-\d{2}$/.test(dateText)?Date.parse(dateText+"T00:00:00Z"):NaN;
+  if(d?.base!=="USD"||!goodRate(rate)||
+     !Number.isFinite(t)||t<1e12||t>Date.now()+600000)throw Error("Invalid ECB FX data");
+  liveFxRate=rate;
   fxUpdatedAt=t;lastFxSuccess=Date.now();saveFx();
   fxError=usableFx()===null?"汇率数据时间过旧，美元折算暂不可用。":"";
  }catch(e){
   fxError=usableFx()!==null?
-   "汇率接口暂时无法访问，沿用仍有效的上次参考数据。":
-   "汇率接口暂不可用，美元折算已暂停。";
+   "ECB汇率接口暂不可用，沿用仍有效的最近工作日参考汇率。":
+   "ECB汇率接口暂不可用，美元折算已暂停。";
  }
 }
 async function loadLiveQuotes(){
@@ -337,7 +330,7 @@ async function loadLiveQuotes(){
   }
  }
  updateQuotePanel(goldOk?
-  "黄金约每60秒刷新；USD/CNY为每日参考汇率。":
+  "":
   "黄金接口暂不可用，显示上次报价（如有）。",!goldOk);
  quoteRequestInProgress=false;
  $("refreshQuotes").disabled=false;$("refreshQuotes").textContent="↻ 刷新行情";
@@ -473,7 +466,7 @@ function convertGold(){
  $("usdGram").textContent="$"+fixed(price/OUNCE);
 }
 restoreFx();
-updateQuotePanel("正在获取黄金行情和日度参考汇率…");
+updateQuotePanel("");
 loadLiveQuotes();
 setInterval(()=>{if(!document.hidden)loadLiveQuotes()},REFRESH_MS);
 document.addEventListener("visibilitychange",()=>{
