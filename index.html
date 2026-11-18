@@ -35,6 +35,22 @@ input:focus,select:focus{outline:2px solid #328f8b;border-color:transparent}
 .hidden{display:none}
 footer{text-align:center;color:#9aa3ad;font-size:12px;padding:15px}
 .warning{background:#fff2e9;color:#9b4c16;font-size:13px;padding:12px;border-radius:9px;margin-top:14px}
+.live-box{background:white;border-radius:16px;padding:16px;margin-bottom:18px;box-shadow:0 3px 20px #202a3a0a}
+.live-top,.live-bottom{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.live-top{font-weight:700;font-size:14px}
+.live-refresh{background:#e7f2f0;color:#247e79;border:none;border-radius:8px;padding:7px 12px;font-size:13px;cursor:pointer}
+.live-refresh:disabled{opacity:.55;cursor:default}
+.live-pair{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:12px 0}
+.live-item{padding:13px;border-radius:10px;background:#f2f8f7;min-width:0}
+.live-item small{display:block;color:#647782;font-size:12px;margin-bottom:7px}
+.live-item strong{display:block;color:#1f5f63;font-size:clamp(19px,5vw,26px);overflow-wrap:anywhere}
+.live-bottom,.live-message{color:#71818d;font-size:12px;line-height:1.65}
+.live-message{margin-top:8px}
+.live-error{color:#bd6225}
+.auto-fx{background:#f2f8f7;border-radius:10px;padding:12px 14px;margin-top:16px;font-size:13px;line-height:1.6}
+.auto-fx strong{color:#247e79}
+.inline-action{background:#e7f2f0;color:#247e79;border:0;border-radius:8px;padding:7px 11px;font-size:12px;cursor:pointer;margin-top:8px}
+@media(max-width:450px){.live-box{padding:14px}.live-item{padding:10px}.live-item strong{font-size:20px}}
 @media(max-width:450px){.card{padding:18px}.big{font-size:27px}.stats{gap:8px}.value{font-size:15px}}
 </style>
 </head>
@@ -46,6 +62,28 @@ footer{text-align:center;color:#9aa3ad;font-size:12px;padding:15px}
 </header>
 
 <main>
+<section class="live-box" aria-label="黄金参考行情">
+  <div class="live-top">
+    <span>🥇 现货黄金行情</span>
+    <button class="live-refresh" id="refreshQuotes" type="button" onclick="loadLiveQuotes()">↻ 刷新行情</button>
+  </div>
+  <div class="live-pair">
+    <div class="live-item">
+      <small>国际现货黄金 · 美元/盎司</small>
+      <strong id="liveUsdPrice">—</strong>
+    </div>
+    <div class="live-item">
+      <small>国际金价折算 · 人民币/克</small>
+      <strong id="liveCnyPrice">—</strong>
+    </div>
+  </div>
+  <div class="live-bottom">
+    <span id="liveRate">USD/CNY：加载中…</span>
+    <span id="liveQuoteTime">报价时间：—</span>
+  </div>
+  <div class="live-message" id="liveMessage" role="status">正在连接行情源…</div>
+  <div class="note" style="margin-top:5px">数据：<a href="https://gold-api.com/" target="_blank" rel="noopener noreferrer">Gold-API</a> · 参考汇率为数据源换算汇率，不等于银行成交汇率；人民币价非国内金店售价。</div>
+</section>
 <div class="tabs">
 <button id="tab1" class="active" onclick="showTool(1)">📈 黄金盈亏</button>
 <button id="tab2" onclick="showTool(2)">⚖️ 金价换算</button>
@@ -113,9 +151,7 @@ footer{text-align:center;color:#9aa3ad;font-size:12px;padding:15px}
 </div>
 
 
-<label>美元兑人民币汇率（1美元 = 多少人民币）</label>
-<input id="fx" type="number" min="0" step="any" value="6.67" oninput="calculate()">
-<p class="note">汇率为手动设置的示例值，并非实时汇率。预测未来美元金价时，也可以输入你假设的未来汇率。</p>
+<div class="auto-fx">自动参考汇率（USD/CNY）：<strong id="fxDisplayProfit">加载中…</strong><div class="muted">按 Gold-API 的参考汇率折算；未来美元金价以当前参考汇率估算，不代表预测未来汇率。</div></div>
 
 <p id="calcError" class="hidden warning" role="alert"></p>
 <div class="result">
@@ -156,10 +192,9 @@ footer{text-align:center;color:#9aa3ad;font-size:12px;padding:15px}
 <h2>⚖️ 国际黄金价格换算器</h2>
 
 <label>国际金价（美元/金衡盎司）</label>
-<input type="number" id="usdGold" value="3800" min="0" step="any" oninput="convertGold()">
-
-<label>美元兑人民币汇率</label>
-<input type="number" id="convertFx" value="6.67" min="0" step="any" oninput="convertGold()">
+<input type="number" id="usdGold" min="0" step="any" placeholder="正在获取最新金价" oninput="userEditedGoldInput=true;convertGold()">
+<button type="button" class="inline-action" onclick="useLiveGoldPrice()">使用最新金价</button>
+<div class="auto-fx">自动参考汇率（USD/CNY）：<strong id="fxDisplayConvert">加载中…</strong></div>
 
 <div class="result">
 <div class="muted">折合人民币每克</div>
@@ -196,15 +231,110 @@ const fixed = n => n.toLocaleString("zh-CN",{
 let oldCostMode = "gram";
 let oldPriceMode = "cny";
 
-// 两个工具共享一个汇率，任意一边修改都会同步到另一边
-function syncExchangeRate(source) {
- const other = source==="fx" ? "convertFx" : "fx";
- $(other).value = $(source).value;
+// 黄金美元报价、Gold-API 使用的 USD/CNY 参考汇率：均不使用固定回退值。
+let liveUsdPrice = null;
+let liveFxRate = null;
+let liveUpdatedAt = null;
+let userEditedGoldInput = false;
+let quoteRequestInProgress = false;
+let lastQuoteAttempt = 0;
+const GOLD_USD_ENDPOINT = "https://api.gold-api.com/price/XAU";
+const GOLD_CNY_ENDPOINT = "https://api.gold-api.com/price/XAU/CNY";
+const REFRESH_MS = 60000;
+
+async function fetchQuoteJson(url) {
+ const controller=new AbortController();
+ const timeout=setTimeout(()=>controller.abort(),12000);
+ try {
+  const resp=await fetch(url,{signal:controller.signal,cache:"no-store"});
+  if(!resp.ok) throw new Error("HTTP "+resp.status);
+  return await resp.json();
+ } finally {clearTimeout(timeout);}
+}
+function quoteTimestamp(t){
+ const d=Date.parse(t||"");
+ return Number.isFinite(d)?d:null;
+}
+function formatQuoteTime(t){
+ if(t===null) return "时间未知";
+ return new Date(t).toLocaleString("zh-CN",{
+  timeZone:"Asia/Shanghai",month:"2-digit",day:"2-digit",
+  hour:"2-digit",minute:"2-digit",second:"2-digit",hour12:false
+ })+"（北京时间）";
+}
+function updateQuotePanel(message,error=false){
+ const ready=liveUsdPrice!==null&&liveFxRate!==null;
+ $("liveUsdPrice").textContent=liveUsdPrice!==null?"$"+fixed(liveUsdPrice):"—";
+ $("liveCnyPrice").textContent=ready?money(liveUsdPrice*liveFxRate/OUNCE):"—";
+ $("liveRate").textContent=liveFxRate!==null?"USD/CNY："+liveFxRate.toFixed(4)+"（参考）":"USD/CNY：暂无数据";
+ $("fxDisplayProfit").textContent=liveFxRate!==null?liveFxRate.toFixed(4):"暂不可用";
+ $("fxDisplayConvert").textContent=liveFxRate!==null?liveFxRate.toFixed(4):"暂不可用";
+ $("liveQuoteTime").textContent="黄金报价："+formatQuoteTime(liveUpdatedAt);
+ const stale=liveUpdatedAt===null||Date.now()-liveUpdatedAt>15*60*1000;
+ const staleHint=stale&&liveUsdPrice!==null?" 该黄金报价已超过15分钟，可能休市或延迟。":"";
+ $("liveMessage").textContent=message+staleHint;
+ $("liveMessage").classList.toggle("live-error",error||stale);
  calculate();
  convertGold();
 }
-$("fx").addEventListener("input",()=>syncExchangeRate("fx"));
-$("convertFx").addEventListener("input",()=>syncExchangeRate("convertFx"));
+async function loadLiveQuotes(){
+ if(quoteRequestInProgress)return;
+ quoteRequestInProgress=true;
+ lastQuoteAttempt=Date.now();
+ $("refreshQuotes").disabled=true;
+ $("refreshQuotes").textContent="刷新中…";
+ $("liveMessage").textContent="正在获取黄金及汇率参考数据…";
+ try{
+  const [usdResult,cnyResult]=await Promise.allSettled([
+   fetchQuoteJson(GOLD_USD_ENDPOINT),fetchQuoteJson(GOLD_CNY_ENDPOINT)
+  ]);
+  let usdOk=false,fxOk=false;
+  if(usdResult.status==="fulfilled"){
+   const d=usdResult.value;
+   if(d&&d.symbol==="XAU"&&d.currency==="USD"&&Number.isFinite(Number(d.price))&&Number(d.price)>0){
+    liveUsdPrice=Number(d.price);
+    liveUpdatedAt=quoteTimestamp(d.updatedAt);
+    usdOk=true;
+   }
+  }
+  if(cnyResult.status==="fulfilled"){
+   const d=cnyResult.value;
+   if(d&&d.symbol==="XAU"&&d.currency==="CNY"){
+    let r=Number(d.exchangeRate);
+    if(!(Number.isFinite(r)&&r>0)&&liveUsdPrice>0&&Number(d.price)>0){
+     r=Number(d.price)/liveUsdPrice;
+    }
+    if(Number.isFinite(r)&&r>0&&r<20){
+     liveFxRate=r;
+     fxOk=true;
+    }
+   }
+  }
+  if(usdOk&&!userEditedGoldInput){
+   $("usdGold").value=liveUsdPrice.toFixed(2);
+  }
+  if(usdOk&&fxOk){
+   updateQuotePanel("报价已更新；约每60秒自动刷新。");
+  }else{
+   updateQuotePanel("部分行情数据暂不可用；已取得的报价仅供参考，可点刷新重试。",true);
+  }
+ }catch(err){
+  updateQuotePanel("行情读取失败，请检查网络后刷新；不使用固定金价或固定汇率。",true);
+ }finally{
+  quoteRequestInProgress=false;
+  $("refreshQuotes").disabled=false;
+  $("refreshQuotes").textContent="↻ 刷新行情";
+ }
+}
+function useLiveGoldPrice(){
+ if(liveUsdPrice===null){
+  $("liveMessage").textContent="尚未取得最新金价，请刷新后再试。";
+  return;
+ }
+ userEditedGoldInput=false;
+ $("usdGold").value=liveUsdPrice.toFixed(2);
+ convertGold();
+}
 
 // 快捷按钮选中高亮，精确输入的非预设价格不高亮
 function highlightSelectedPrice(){
@@ -241,14 +371,14 @@ function calculate(){
  highlightSelectedPrice();
  const g=number("grams");
  const cost=number("cost");
- const fx=number("fx");
+ const fx=liveFxRate;
  const target=number("future");
  if(g<=0){
   calculationError("请先输入大于0的黄金克数，再计算盈亏。");
   return;
  }
- if($("priceMode").value==="usd"&&fx<=0){
-  calculationError("请输入大于0的美元兑人民币汇率。");
+ if($("priceMode").value==="usd"&&!(fx>0)){
+  calculationError("自动汇率暂不可用，美元金价无法换算人民币。请检查网络并刷新行情。");
   return;
  }
  calculationError("");
@@ -286,8 +416,13 @@ function changeCostMode(){
 
 function changePriceMode(){
  const next=$("priceMode").value;
- const fx=number("fx");
+ const fx=liveFxRate;
  const old=number("future");
+ if(oldPriceMode!==next&&!(fx>0)){
+  $("priceMode").value=oldPriceMode;
+  calculationError("汇率尚未加载成功，暂时不能切换价格单位。请刷新行情。");
+  return;
+ }
  if(oldPriceMode!==next){
    const converted=next==="usd"?(fx?old*OUNCE/fx:0):old*fx/OUNCE;
    $("future").value=String(converted);
@@ -305,10 +440,17 @@ function setPrice(p){
 }
 
 function convertGold(){
+ const raw=$("usdGold").value.trim();
  const price=number("usdGold");
- const fx=number("convertFx");
- if(fx<=0){
-  $("cnyGram").textContent="请填写有效汇率";
+ const fx=liveFxRate;
+ if(raw===""||!(price>0)){
+  $("cnyGram").textContent="—";
+  $("cnyOunce").textContent="—";
+  $("usdGram").textContent="—";
+  return;
+ }
+ if(!(fx>0)){
+  $("cnyGram").textContent="等待自动汇率";
   $("cnyOunce").textContent="—";
   $("usdGram").textContent="$"+fixed(price/OUNCE);
   return;
@@ -317,8 +459,12 @@ function convertGold(){
  $("cnyOunce").textContent=money(price*fx);
  $("usdGram").textContent="$"+fixed(price/OUNCE);
 }
-calculate();
-convertGold();
+updateQuotePanel("等待行情数据…");
+loadLiveQuotes();
+setInterval(loadLiveQuotes,REFRESH_MS);
+document.addEventListener("visibilitychange",()=>{
+ if(!document.hidden&&Date.now()-lastQuoteAttempt>=REFRESH_MS) loadLiveQuotes();
+});
 </script>
 </body>
 </html>
